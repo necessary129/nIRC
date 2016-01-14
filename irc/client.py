@@ -15,15 +15,69 @@
 #  PDF: https://noteness.cf/GPL.pdf
 
 import asyncio
-import info
+import handler.info as info
 #import handler
 
+from handler.handle import Handler
 
+from .parser import parse_raw_irc_command
+
+import threading
+import time
+
+class TokenBucket(object):
+    """An implementation of the token bucket algorithm.
+
+    >>> bucket = TokenBucket(80, 0.5)
+    >>> bucket.consume(1)
+    """
+    def __init__(self, tokens, fill_rate):
+        """tokens is the total tokens in the bucket. fill_rate is the
+        rate in tokens/second that the bucket will be refilled."""
+        self.capacity = float(tokens)
+        self._tokens = float(tokens)
+        self.fill_rate = float(fill_rate)
+        self.timestamp = time.time()
+
+    def consume(self, tokens):
+        """Consume tokens from the bucket. Returns True if there were
+        sufficient tokens otherwise False."""
+        if tokens <= self.tokens:
+            self._tokens -= tokens
+            return True
+        return False
+
+    @property
+    def tokens(self):
+        now = time.time()
+        if self._tokens < self.capacity:
+            delta = self.fill_rate * (now - self.timestamp)
+            self._tokens = min(self.capacity, self._tokens + delta)
+        self.timestamp = now
+        return self._tokens
+
+def add_commands(d):
+    def dec(cls):
+        for c in d:
+            def func(x):
+                def gen(self, *a):
+                    self._send(x.upper()+" "+" ".join(a))
+                return gen
+            setattr(cls, c, func(c))
+        return cls
+    return dec
+@add_commands(("join",
+               "mode",
+               "nick",
+               "who",
+               "cap",
+               "pong",
+               "ping"))
 class IRCClient(asyncio.Protocol):
-    def __init__(self, handler, **kwargs):
+    def __init__(self, **kwargs):
         asyncio.Protocol.__init__(self)
-        self.handler = handler
-        self.server = 'chat.freenode.net'
+        self.handler = Handler(self)
+        self.server = 'noteness.cf'
         self.port = 6667
         self.conf = info.States()
         self.state = info.States()
@@ -37,6 +91,9 @@ class IRCClient(asyncio.Protocol):
         self.connected = False
         self.reconnect = True
         self._buffer = bytes()
+        self.lock = threading.Lock()
+        self.printer = lambda output, level=None: print(output)
+        self.tokenbucket = TokenBucket(23, 1.73)
 
     def _connect(self):
         loop = asyncio.get_event_loop()
@@ -50,18 +107,19 @@ class IRCClient(asyncio.Protocol):
     def connection_made(self, sock):
         self.connected = True
         self._socket = sock
-        self._socket.write("USER Hidsaf Hi Hi Hi\r\n".encode('utf8'))
-        self._socket.write("NICK Hiaaaad\r\n".encode('utf8'))
-
+        self.handler.connected()
     def connection_lost(self, exc):
         self.connected = False
-        loop = asyncio.get_event_loop()
-        loop.stop()
+        self._disconnected()
 
     def eof_recieved(self):
         self.connected = False
+        self._disconnected()
+
+    def _disconnected(self):
         loop = asyncio.get_event_loop()
         loop.stop()
+        self.handler.on_disconnect()
 
     def connect(self):
         loop = asyncio.get_event_loop()
@@ -75,17 +133,57 @@ class IRCClient(asyncio.Protocol):
             finally:
                 loop.close()
 
-    def disconnect(self):
+    def _send(self, *a):
+        with self.lock:
+            largs = []
+            for x in a:
+                y= str(x)
+                largs.append(y.encode('utf8'))
+            msg = b" ".join(largs)
+            while not self.tokenbucket.consume(1):
+                time.sleep(0.3)
+            self.printer(msg.decode('utf8'))
+            self._socket.write(msg+'\r\n'.encode('utf8'))
+
+    def disconnect(self, msg=None):
+        self._send("QUIT{0}".format(" :"+msg if msg else ""))
         self.connected = False
         self.reconnect = False
         asyncio.get_event_loop().stop()
+
+    def banlist(self, ch):
+        self.mode(ch,'b')
+
+    def quietlist(self, ch):
+        self.mode(ch,'q')
+
+    def whox(self, ch):
+        self._send("who {0} %tcuhnfra,254".format(ch))
 
     def data_received(self, raw):
         self._buffer += raw
         data = self._buffer.split(bytes("\n", "utf8"))
         self._buffer = data.pop()
         for el in data:
-            print(el.decode("utf8"))
+            prefix, command, args = parse_raw_irc_command(el.decode('utf8'))
+            self.printer((prefix, command, args))
+            self.handler.recieve_raw(prefix, command, *args)  
+
+    def register(self):
+        self.nick(self.conf.nick)
+        self.user(self.ident, self.realname)
+
+    def add_handler(self, event, hookid=-1):
+        def reg(func):
+            self.handler.add_handler(event, func, hookid)
+            return func
+        return reg
+
+    def del_handler(self, *args, **kwargs):
+        return self.handler.del_handler(*args, **kwargs)
+
+    def user(self, ident, rname):
+        self._send("USER", ident, self.server, self.server, ":{0}".format(rname or ident))
 
     def __call__(self):
         return self
