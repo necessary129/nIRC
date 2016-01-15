@@ -62,7 +62,10 @@ class Nick:
         self.name = nick
         self.ident = ident
         self.host = host
-        self.raw = raw
+
+    @property
+    def raw(self):
+        return "{self.name}!{self.ident}@{self.host}".format(self=self)
 
     def match(self, wild):
         return fnmatch.fnmatch(self.raw, wild)
@@ -81,7 +84,7 @@ class Nick:
         return self.raw == another
 
     def __repr__(self):
-        return '{0}({1})'.format(self.__class__.__name__, self.name)
+        return "{self.__class__.__name__}(Nick='{self.name}',Ident='{self.ident}',Host='{self.host}')".format(self=self)
 
 
 class Channel:
@@ -94,5 +97,13 @@ class Channel:
         return "{self.__class__.__name__}({self.name})".format(self=self)
 
 class States:
-    def __init__(self, nick=None):
+    def __init__(self, client, nick=None):
         self.nick = nick
+        self.client = client
+
+    def __setattr__(self, attr, value):
+        if attr == 'nick' and 'nick' in self.__dict__:
+            if value != self.__dict__['nick']:
+                self.client.handler.nick_change()
+
+        self.__dict__[attr] = value

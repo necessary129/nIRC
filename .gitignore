@@ -42,7 +42,7 @@ logs/*
 .cache
 nosetests.xml
 coverage.xml
-test.py
+
 # Translations
 *.mo
 *.pot

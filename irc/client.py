@@ -79,9 +79,8 @@ class IRCClient(asyncio.Protocol):
         self.handler = Handler(self)
         self.server = 'noteness.cf'
         self.port = 6667
-        self.conf = info.States()
-        self.state = info.States()
-        self.conf.nick = kwargs.pop('nick')
+        self._opts = info.States(self)
+        self._opts.nick = kwargs.pop('nick')
         self.use_sasl = False
         self.server_pass = None
         self.ident = None
@@ -170,7 +169,7 @@ class IRCClient(asyncio.Protocol):
             self.handler.recieve_raw(prefix, command, *args)  
 
     def register(self):
-        self.nick(self.conf.nick)
+        self.nick(self.gnick)
         self.user(self.ident, self.realname)
 
     def add_handler(self, event, hookid=-1):
@@ -187,3 +186,10 @@ class IRCClient(asyncio.Protocol):
 
     def __call__(self):
         return self
+
+    @property
+    def gnick(self):
+        return self._opts.nick
+
+    def __repr__(self):
+        return "{self.__class__.__name__}(Server={self.server},Port={self.port},Nick={self.gnick})".format(self=self)
