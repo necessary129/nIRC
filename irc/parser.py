@@ -18,7 +18,7 @@
 from .numerics import numerics as numert
 import re
 
-
+# Copyright (C) oyoyo Python IRC developers
 def parse_raw_irc_command(element):
     """
     This function parses a raw irc command and returns a tuple

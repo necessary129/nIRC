@@ -13,6 +13,7 @@
 #  You should have received a copy of the GNU General Public License along
 #  with this program; if not, download it from here: https://noteness.cf/GPL.txt
 #  PDF: https://noteness.cf/GPL.pdf
+from . import info
 
 class hook:
     def __init__(self, func, hookid=-1):
@@ -20,11 +21,58 @@ class hook:
         self.id = hookid
 
 class cmd:
-    def __init__(self, cmd, owner_only=False,admin_only=False, pm=True):
+    def __init__(self, handler, cmd, func, owner_only=False,admin_only=False, pm=True):
         self.name = cmd
         self.admin_only = admin_only
         self.pm = pm
         self.owner_only = owner_only
+        self.handler = handler
+        self.func = func
 
-    def call(self, nick, channel, msg):
-        pass
+    def call(self, cli, nick, channel, msg):
+        isch = isinstance(channel, info.Channel)
+        if self.owner_only:
+            if not self.handler.is_owner(nick):
+                nick.notice("You are not an owner.")
+                return
+        if self.admin_only:
+            if (not self.handler.is_admin(nick)):
+                nick.notice("You are not an admin.")
+                return
+        if (not self.pm) and not isch:
+            nick.notice("PMing this command is not allowed.")
+            return
+        return self.func(cli, nick, channel, isch, msg)
+
+
+FUNCS = {}
+
+def add_f(name):
+    def f(func):
+        FUNCS[name] = func
+        return func
+    return f
+
+def ret_f():
+    for f,y in FUNCS.items():
+        yield f,y
+
+@add_f('add_handler')
+def a_h(self, event, hookid=-1):
+    def reg(func):
+        self.handler.add_handler(event, func, hookid)
+        return func
+    return reg
+
+
+@add_f('cmd')
+def a_c(self, cmd, owner_only=False,admin_only=False, pm=True):
+#    print((owner_only, admin_only, pm))
+    def reg(func):
+        self.handler.add_cmd(cmd, func, owner_only=owner_only,admin_only=admin_only, pm=pm)
+        return func
+    return reg
+
+@add_f('del_handler')
+def d_h(self, *args, **kwargs):
+    return self.handler.del_handler(*args, **kwargs)

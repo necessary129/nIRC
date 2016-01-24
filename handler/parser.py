@@ -14,6 +14,8 @@
 #  with this program; if not, download it from here: https://noteness.cf/GPL.txt
 #  PDF: https://noteness.cf/GPL.pdf
 
+
+# Copyright (C) oyoyo Python IRC developers
 def parse_nick(name):
     """ parse a nickname and return a tuple of (nick, mode, user, host)
 

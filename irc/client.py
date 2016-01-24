@@ -24,6 +24,10 @@ from .parser import parse_raw_irc_command
 
 import threading
 import time
+import fnmatch
+import ssl
+
+from socket import gaierror 
 
 class TokenBucket(object):
     """An implementation of the token bucket algorithm.
@@ -66,6 +70,7 @@ def add_commands(d):
             setattr(cls, c, func(c))
         return cls
     return dec
+
 @add_commands(("join",
                "mode",
                "nick",
@@ -78,7 +83,8 @@ class IRCClient(asyncio.Protocol):
         asyncio.Protocol.__init__(self)
         self.handler = Handler(self)
         self.server = 'noteness.cf'
-        self.port = 6667
+        self.port = 6697
+        self.use_ssl = True
         self._opts = info.States(self)
         self._opts.nick = kwargs.pop('nick')
         self.use_sasl = False
@@ -86,22 +92,53 @@ class IRCClient(asyncio.Protocol):
         self.ident = None
         self.nickserv_account = None
         self.nickserv_password = None
+        self.admin_accounts = []
+        self.admin_hosts = []
+        self.owner_accounts = []
+        self.owner_hosts = []
+        self.cmd_prefix = '!'
         self.__dict__.update(**kwargs)
         self.connected = False
         self.reconnect = True
         self._buffer = bytes()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.printer = lambda output, level=None: print(output)
         self.tokenbucket = TokenBucket(23, 1.73)
+        self.scontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        self.scontext.verify_mode = ssl.CERT_NONE
+
+    def privmsg(self, target, msg):
+        for line in msg.split('\n'):
+            maxchars = 400 # Make it 400 so we won't need to worry
+            while line:
+                extra = ""
+                if len(line) > maxchars:
+                    extra = line[maxchars:]
+                    line = line[:maxchars]
+                self._send("PRIVMSG {0} :{1}".format(target, line))
+                line = extra
+
+    msg = privmsg
+
+    def notice(self, target, msg):
+        for line in msg.split('\n'):
+            maxchars = 400 # Make it 400 so we won't need to worry
+            while line:
+                extra = ""
+                if len(line) > maxchars:
+                    extra = line[maxchars:]
+                    line = line[:maxchars]
+                self._send("NOTICE {0} :{1}".format(target, line))
+                line = extra
 
     def _connect(self):
         loop = asyncio.get_event_loop()
         task = asyncio.Task(loop.create_connection(
-            self, self.server, self.port))
+            self, self.server, self.port, ssl=self.scontext if self.use_ssl else False))
         try:
             loop.run_until_complete(task)
-        except TimeoutError:
-            print("Timeout")
+        except KeyboardInterrupt:
+            seld.disconnect(msg="Keyboard Interrupt")            
 
     def connection_made(self, sock):
         self.connected = True
@@ -141,7 +178,7 @@ class IRCClient(asyncio.Protocol):
             msg = b" ".join(largs)
             while not self.tokenbucket.consume(1):
                 time.sleep(0.3)
-            self.printer(msg.decode('utf8'))
+            self.printer("---> send "+msg.decode('utf8'))
             self._socket.write(msg+'\r\n'.encode('utf8'))
 
     def disconnect(self, msg=None):
@@ -157,7 +194,7 @@ class IRCClient(asyncio.Protocol):
         self.mode(ch,'q')
 
     def whox(self, ch):
-        self._send("who {0} %tcuhnfra,254".format(ch))
+        self.who("{0} %tcuhnfra,254".format(ch))
 
     def data_received(self, raw):
         self._buffer += raw
@@ -172,15 +209,6 @@ class IRCClient(asyncio.Protocol):
         self.nick(self.gnick)
         self.user(self.ident, self.realname)
 
-    def add_handler(self, event, hookid=-1):
-        def reg(func):
-            self.handler.add_handler(event, func, hookid)
-            return func
-        return reg
-
-    def del_handler(self, *args, **kwargs):
-        return self.handler.del_handler(*args, **kwargs)
-
     def user(self, ident, rname):
         self._send("USER", ident, self.server, self.server, ":{0}".format(rname or ident))
 
@@ -190,6 +218,10 @@ class IRCClient(asyncio.Protocol):
     @property
     def gnick(self):
         return self._opts.nick
+
+    @classmethod
+    def add_attr(self, name, func):
+        setattr(self, name, func)
 
     def __repr__(self):
         return "{self.__class__.__name__}(Server={self.server},Port={self.port},Nick={self.gnick})".format(self=self)

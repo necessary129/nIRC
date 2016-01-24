@@ -39,15 +39,26 @@ class Dct(dict):
         self[attr] = value
 
 class ChannelUser:
-    def __init__(self, nick, operator=False, voiced=False, quieted=False, 
+    def __init__(self, cli, channel, nick, operator=False, voiced=False, quieted=False, 
         banned=False, account=None, raw=None, away=False):
-        self.nick = nick
+        self.cli = cli
+        self.nick = nick if isinstance(nick, Nick) else Nick(cli, nick)
+        self.channel = channel
         self.operator = operator
         self.voiced = voiced
         self.quieted = quieted
         self.banned = banned
         self.account = account
         self.away = away
+
+    def pm(self, msg):
+        self.cli.msg(self.nick.name, msg)
+
+    def reply(self, msg):
+        self.cli.msg(self.channel.name, "{0}: {1}".format(self.nick.name, msg))
+
+    def notice(self, msg):
+        self.cli.notice(self.nick.name, msg)
 
     def __eq__(self, another):
         return self.nick == another
@@ -57,8 +68,9 @@ class ChannelUser:
 
 
 class Nick:
-    def __init__(self, raw):
+    def __init__(self, cli, raw):
         nick, ident, host = parse_nick(raw)
+        self.cli = cli
         self.name = nick
         self.ident = ident
         self.host = host
@@ -69,6 +81,12 @@ class Nick:
 
     def match(self, wild):
         return fnmatch.fnmatch(self.raw, wild)
+
+    def pm(self, msg):
+        self.cli.msg(self.name, msg)
+
+    def notice(self, msg):
+        self.cli.notice(self.name, msg)
 
     def __eq__(self, another):
         if isinstance(another, ChannelUser):
@@ -88,13 +106,17 @@ class Nick:
 
 
 class Channel:
-    def __init__(self, name, key=None, **kwargs):
+    def __init__(self, cli, name, key=None, **kwargs):
         self.name = name
+        self.cli = cli
         self.key = key
         self.users = Dct()
 
     def __repr__(self):
         return "{self.__class__.__name__}({self.name})".format(self=self)
+
+    def pm(self, msg):
+        self.cli.msg(self.name, msg)
 
 class States:
     def __init__(self, client, nick=None):
@@ -107,3 +129,9 @@ class States:
                 self.client.handler.nick_change()
 
         self.__dict__[attr] = value
+
+
+class ModeI:
+    ArgModes = ('f','j','k','l','v','o','b','q','e','I')
+
+
