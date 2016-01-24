@@ -1,4 +1,4 @@
-from irc.client import IRCClient
+from nirc import IRCClient
 
 a = IRCClient(
     nick="a",
