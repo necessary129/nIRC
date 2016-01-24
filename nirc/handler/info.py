@@ -1,7 +1,7 @@
 #  Copyright (C) 2016 Muhammed Shamil K
-#
+
 #This file is part of nIRC.
-#
+
 #nIRC is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
@@ -101,6 +101,9 @@ class Nick:
                 return (self.ident+self.host) == another
             return self.name == another
         return self.raw == another
+
+    def __len__(self):
+        return len(self.raw)
 
     def __repr__(self):
         return "{self.__class__.__name__}(Nick='{self.name}',Ident='{self.ident}',Host='{self.host}')".format(self=self)
