@@ -20,9 +20,10 @@ from . import utils, info
 import traceback
 import re
 import fnmatch
+import base64
 
 class Handler:
-    def __init__(self, client):
+    def init(self, client):
         self.client = client
         for f,y in utils.ret_f():
             self.client.add_attr(f,y)
@@ -32,6 +33,10 @@ class Handler:
         self.cmds = defaultdict(list)
         self.quiets = defaultdict(set)
         self.handlers_do()
+        self.supported_caps = set()
+        self.request_caps = set(['multi-prefix'])
+        if self.client.use_sasl:
+            self.request_caps.add('sasl')
 
     def handlers_do(self):
         self.add_handler('privmsg',self.on_privmsg_cmd)
@@ -44,11 +49,23 @@ class Handler:
         self.add_handler('part',self.on_part)
         self.add_handler('quit',self.on_quit)   
         self.add_handler('mode',self.on_mode)  
+        self.add_handler('unavailresource', self.on_nonick,125)
+        self.add_handler('nicknameinuse', self.on_nonick,125)
+        self.add_handler('cap', self.on_cap)
+        self.add_handler('saslsuccess',self.on_sasl_success)
+        self.add_handler('saslfail',self.on_sasl_failure)
+        self.add_handler('sasltoolong',self.on_sasl_failure)
+        self.add_handler('saslaborted',self.on_sasl_failure)
+        self.add_handler('saslalready',self.on_sasl_failure)
+        self.add_handler('authenticate',self.on_authenticate)
+        self.add_handler('endofmotd',self.on_motd,254)
+        self.add_handler('nomotd',self.on_motd,254)
 
-    def add_handler(self, event, func, hookid=-1):
+    def add_handler(self, event, func, hookid=-1,nod=False):
         hook = utils.hook(func, hookid=hookid)
         self.hooks[event.lower()].append(hook)
-        self.orighooks[event.lower()].append(hook)
+        if not nod:
+            self.orighooks[event.lower()].append(hook)
 
     def del_handler(self, hookid):
         for each in list(self.hooks):
@@ -70,6 +87,10 @@ class Handler:
                 sys.stderr.write(traceback.format_exc())
 
     def connected(self):
+        self.client.cap('LS','302')
+        if not self.client.use_sasl:
+            self.client._send('PASS {0}:{1}'.format(self.client.nickserv_account,
+             self.client.nickserv_password))
         self.client.register()
 
     def is_admin(self, host):
@@ -119,12 +140,71 @@ class Handler:
         return False
 
     ### Handlers ###
+
+    def do_regain(self, *args):
+        self.client._send("NS REGAIN",self.client.nick.strip('_'))
+
+    def on_motd(self, cli, *args):
+        self.client._send("NICK",self.client.nick.strip('_'))
+        self.client.join(",".join(self.client.channels))
+        self.del_handler(254)
+
+    def on_nonick(self, *args):
+        self.client._opts.nick += '_'
+        self.client.snick()
+        self.del_handler(125)
+        self.add_handler('unavailresource', self.do_regain,nod=True)
+        self.add_handler('nicknameinuse', self.do_regain,nod=True)
+
+    #lykos ;)
+    def on_cap(self, cli, svr, mynick, cmd, caps, star=None):
+        if cmd == 'LS':
+            if caps == '*':
+                # Multi-line LS
+                self.supported_caps.update(star.split())
+            else:
+                self.supported_caps.update(caps.split())
+
+                if self.client.use_sasl and 'sasl' not in self.supported_caps:
+                    self.client.printer('Server does not support SASL authentication')
+                    cli.disconnect()
+
+                common_caps = self.request_caps & self.supported_caps
+
+                if common_caps:
+                    cli.cap('REQ', ':{0}'.format(' '.join(common_caps)))
+        elif cmd == 'ACK':
+            if 'sasl' in caps:
+                cli._send('AUTHENTICATE PLAIN')
+            else:
+                cli.cap('END')
+        elif cmd == 'NAK':
+            # This isn't supposed to happen. The server claimed to support a
+            # capability but now claims otherwise.
+            cli._send('Server refused capabilities: {0}'.format(' '.join(caps)))
+
+    def on_authenticate(self, cli, prefix, p):
+        if p == '+':
+            acc = self.client.nickserv_account.encode('utf8')
+            passw = self.client.nickserv_password.encode('utf8')
+            string = b'\0'.join((acc,acc, passw))
+            auth_token = base64.b64encode(string).decode('utf8')
+            cli._send('AUTHENTICATE',auth_token)
+
+    def on_sasl_success(self, cli, *etc):
+        cli.cap('END')
+
+    def on_sasl_failure(self, cli, *etc):
+        cli.printer('Authentication Failed.')
+        cli.disconnect()
+
     def on_disconnect(self):
         self.hooks.update(self.orighooks)
 
     def on_join(self, cli, nick, channel):
         nicka = info.Nick(self.client, nick)
         if nicka.name == cli._opts.nick:
+            cli._opts.nch(nicka)
             cli.whox(channel)
             cli.banlist(channel)
             cli.quietlist(channel)
@@ -133,12 +213,15 @@ class Handler:
             cli.whox(nicka.name)
             self.client.ping(':NEWUSER {0} {1}'.format(channel, nicka.name))
 
-    def on_whox(self, cli, prefix, snick, numeric, channel, ident, 
-        host, nick, status, account, gecos):
+    def on_whox(self, cli, prefix, snick, *args):
         self.client._opts.nick = snick
+        try:
+            numeric, channel, ident, host, nick, status, account, gecos = args
+        except ValueError:
+            return
         if numeric != '254':
             return
-        if channel not in self.channels:
+        if (channel != '*') and (channel not in self.channels):
             self.channels[channel] = info.Channel(self.client, channel)
         opped = '@' in status
         voiced = '+' in status
@@ -207,7 +290,7 @@ class Handler:
                 channel.users[nick].nick.name = nick
 
     def on_pong(self, cli, _, _1, text):
-        if not text.startswith("NEWUSER"):
+        if not text.startswith('NEWUSER'):
             return
         text = text.split(' ')
         text.pop(0)

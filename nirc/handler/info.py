@@ -126,6 +126,23 @@ class States:
     def __init__(self, client, nick=None):
         self.nick = nick
         self.client = client
+        self.ident = None
+        self.host = None
+
+    def rparse(self, raw):
+        nick, ident, host = parse_nick(raw)
+        self.nick = nick
+        self.ident = ident
+        self.host = host
+
+    def nch(self, nick):
+        self.nick = nick.name
+        self.ident = nick.ident
+        self.host = nick.host
+
+    @property
+    def raw(self):
+        return "{self.nick}!{self.ident}@{self.host}".format(self=self)
 
     def __setattr__(self, attr, value):
         if attr == 'nick' and 'nick' in self.__dict__:

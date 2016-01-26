@@ -4,12 +4,12 @@ a = IRCClient(
     nick="a",
     ident="Hi",
     realname="SE  SE",
-    owner_accounts=['note*'])
-@a.add_handler('endofmotd', hookid=254)
-@a.add_handler('nomotd', hookid=254)
-def c(cli, *args):
-    cli.join("#ff")
-    a.del_handler(254)
+    owner_accounts=['note*'],
+    nickserv_account = 'a',
+    nickserv_password = 'pass',
+    use_sasl = True,
+    channels = ['#ff']
+    )
 
 @a.cmd('hi', owner_only=True)
 def c(cli, nick, channel, isch, msg):
@@ -34,7 +34,5 @@ def launch_shell():
     threading.Thread(target=shell).start()
 
 launch_shell()
-try:
-    a.connect()
-except KeyboardInterrupt:
-    a.disconnect()
+
+a.connect()

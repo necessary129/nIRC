@@ -74,7 +74,6 @@ def add_commands(d):
 
 @add_commands(("join",
                "mode",
-               "nick",
                "who",
                "cap",
                "pong",
@@ -82,22 +81,24 @@ def add_commands(d):
 class IRCClient(asyncio.Protocol):
     def __init__(self, **kwargs):
         asyncio.Protocol.__init__(self)
-        self.handler = Handler(self)
         self.server = 'noteness.cf'
         self.port = 6697
         self.use_ssl = True
         self._opts = info.States(self)
-        self._opts.nick = kwargs.pop('nick')
         self.use_sasl = False
         self.server_pass = None
-        self.ident = None
         self.nickserv_account = None
         self.nickserv_password = None
+        self.use_sasl = False
         self.admin_accounts = []
         self.admin_hosts = []
         self.owner_accounts = []
         self.owner_hosts = []
         self.cmd_prefix = '!'
+        self.handler = Handler()
+        self._opts.nick = kwargs.pop('nick')
+        self._ident = kwargs.pop('ident')
+        self.join_channels = []
         self.__dict__.update(**kwargs)
         self.connected = False
         self.reconnect = True
@@ -107,10 +108,13 @@ class IRCClient(asyncio.Protocol):
         self.tokenbucket = TokenBucket(23, 1.73)
         self.scontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         self.scontext.verify_mode = ssl.CERT_NONE
+        self.disconnected = False
+        self.retries = 0
+        self.handler.init(self)
 
     def privmsg(self, target, msg):
         for line in msg.split('\n'):
-            maxchars = 400 # Make it 400 so we won't need to worry
+            maxchars = 490 - len(self._opts.raw) if self._opts.host else 400
             while line:
                 extra = ""
                 if len(line) > maxchars:
@@ -123,7 +127,7 @@ class IRCClient(asyncio.Protocol):
 
     def notice(self, target, msg):
         for line in msg.split('\n'):
-            maxchars = 400 # Make it 400 so we won't need to worry
+            maxchars = 490 - len(self._opts.raw) if self._opts.host else 400
             while line:
                 extra = ""
                 if len(line) > maxchars:
@@ -137,14 +141,21 @@ class IRCClient(asyncio.Protocol):
         task = asyncio.Task(loop.create_connection(
             self, self.server, self.port, ssl=self.scontext if self.use_ssl else False))
         try:
-            loop.run_until_complete(task)
-        except KeyboardInterrupt:
-            seld.disconnect(msg="Keyboard Interrupt")            
+            loop.run_until_complete(task)  
+        except OSError:
+            self.printer("Connection Failed. Retrying...")
+            self.retries += 1
+            if self.retries > 3:
+                self.printer("Not Connecting...")
+                self.reconnect = False
+
 
     def connection_made(self, sock):
         self.connected = True
         self._socket = sock
+        self.retries = 0
         self.handler.connected()
+
     def connection_lost(self, exc):
         self.connected = False
         self._disconnected()
@@ -164,11 +175,15 @@ class IRCClient(asyncio.Protocol):
             try:
                 while True:
                     self._connect()
-                    loop.run_forever()
+                    if self.retries == 0:
+                        loop.run_forever()
                     if not self.reconnect:
                         break
+            except KeyboardInterrupt:
+                self.disconnect(msg="Keyboard Interrupt.")
             finally:
                 loop.close()
+
 
     def _send(self, *a):
         with self.lock:
@@ -203,22 +218,21 @@ class IRCClient(asyncio.Protocol):
         self._buffer = data.pop()
         for el in data:
             prefix, command, args = parse_raw_irc_command(el.decode('utf8'))
-            self.printer((prefix, command, args))
+            self.printer("<--- receive {0} {1} ({2})".format(prefix, command, ", ".join(args)), level="debug")
             self.handler.recieve_raw(prefix, command, *args)  
 
     def register(self):
-        self.nick(self.gnick)
-        self.user(self.ident, self.realname)
+        self.snick()
+        self.user(self._ident, self.realname)
 
     def user(self, ident, rname):
         self._send("USER", ident, self.server, self.server, ":{0}".format(rname or ident))
 
+    def snick(self):
+        self._send("NICK",self.nick)
+
     def __call__(self):
         return self
-
-    @property
-    def gnick(self):
-        return self._opts.nick
 
     @classmethod
     def add_attr(self, name, func):

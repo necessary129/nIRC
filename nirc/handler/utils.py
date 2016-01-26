@@ -78,3 +78,19 @@ def a_c(self, cmd, owner_only=False,admin_only=False, pm=True):
 @add_f('del_handler')
 def d_h(self, *args, **kwargs):
     return self.handler.del_handler(*args, **kwargs)
+
+
+@add_f('nick')
+@property
+def nick(self):
+    return self._opts.nick
+
+@add_f('ident')
+@property
+def ident(self):
+    return self._opts.ident
+
+@add_f('host')
+@property
+def host(self):
+    return self._opts.host
