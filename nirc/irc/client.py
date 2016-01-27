@@ -239,4 +239,4 @@ class IRCClient(asyncio.Protocol):
         setattr(self, name, func)
 
     def __repr__(self):
-        return "{self.__class__.__name__}(Server={self.server},Port={self.port},Nick={self.gnick})".format(self=self)
+        return "{self.__class__.__name__}(Server={self.server},Port={self.port},Nick={self.nick})".format(self=self)

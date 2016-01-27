@@ -69,7 +69,6 @@ def a_h(self, event, hookid=-1):
 
 @add_f('cmd')
 def a_c(self, cmd, owner_only=False,admin_only=False, pm=True):
-#    print((owner_only, admin_only, pm))
     def reg(func):
         self.handler.add_cmd(cmd, func, owner_only=owner_only,admin_only=admin_only, pm=pm)
         return func

@@ -60,6 +60,8 @@ class Handler:
         self.add_handler('authenticate',self.on_authenticate)
         self.add_handler('endofmotd',self.on_motd,254)
         self.add_handler('nomotd',self.on_motd,254)
+        self.add_handler('nick',self.on_nick)
+        self.add_handler('hosthidden',self.on_host)
 
     def add_handler(self, event, func, hookid=-1,nod=False):
         hook = utils.hook(func, hookid=hookid)
@@ -276,14 +278,14 @@ class Handler:
                     self.quiets[channel].discard(nicks[n])
             if char == 'v':
                 self.channels[channel].users[nicks[n]].voiced = d
-            if char in info.ModeI.ArgModes:
+            if char in info.Modes.ArgModes:
                 n += 1
 
     def on_nick(self, cli, prefix, nick):
         onick = prefix.split('!')[0]
-        if onick == self.client.gnick:
+        if onick == self.client.nick:
             self.client._opts.nick = nick
-        for channel in self.channels:
+        for channel in self.channels.values():
             if nick in channel.users.keys():
                 channel.users[nick] = channel.users[onick]
                 del channel.users[onick]
@@ -303,6 +305,12 @@ class Handler:
     def nick_change(self, *args, **kwargs):
         pass
 
+    def host_change(self, *args, **kwargs):
+        pass
+
+    def ident_change(self, *args, **kwargs):
+        pass
+
     def on_part(self, cli, prefix, channel, msg=None):
         self.channels[channel].users.pop(prefix.split('!')[0], None)
 
@@ -311,6 +319,9 @@ class Handler:
         for channel in self.channels.values():
             if u in channel.users:
                 channel.users.pop(u)
+
+    def on_host(self, cli, prefix, snick, host, bullshit):
+        self.client._opts.host = host
 
     def on_privmsg_cmd(self, cli, prefix, channel, text):
         if channel.startswith('#'):

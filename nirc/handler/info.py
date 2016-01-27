@@ -145,14 +145,13 @@ class States:
         return "{self.nick}!{self.ident}@{self.host}".format(self=self)
 
     def __setattr__(self, attr, value):
-        if attr == 'nick' and 'nick' in self.__dict__:
-            if value != self.__dict__['nick']:
-                self.client.handler.nick_change()
-
+        if attr in self.__dict__:
+            if value != self.__dict__[attr] and self.host:
+                self.__dict__[attr] = value
+                getattr(self.client.handler,'{0}_change'.format(attr))()
         self.__dict__[attr] = value
 
-
-class ModeI:
+class Modes:
     ArgModes = ('f','j','k','l','v','o','b','q','e','I')
 
 
