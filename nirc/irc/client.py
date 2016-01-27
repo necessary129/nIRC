@@ -170,6 +170,7 @@ class IRCClient(asyncio.Protocol):
         self.handler.on_disconnect()
 
     def connect(self):
+        """"""
         loop = asyncio.get_event_loop()
         if not loop.is_running():
             try:
@@ -184,6 +185,8 @@ class IRCClient(asyncio.Protocol):
             finally:
                 loop.close()
 
+    def send(self, *a):
+        return self.send(*a)
 
     def _send(self, *a):
         with self.lock:
