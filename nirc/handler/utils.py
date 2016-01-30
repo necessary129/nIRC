@@ -93,3 +93,8 @@ def ident(self):
 @property
 def host(self):
     return self._opts.host
+
+@add_f('channels')
+@property
+def host(self):
+    return self.handler.channels
