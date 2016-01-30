@@ -168,7 +168,7 @@ class Handler:
                 self.supported_caps.update(caps.split())
 
                 if self.client.use_sasl and 'sasl' not in self.supported_caps:
-                    self.client.printer('Server does not support SASL authentication')
+                    self.client.stream_handler('Server does not support SASL authentication')
                     cli.disconnect()
 
                 common_caps = self.request_caps & self.supported_caps
@@ -197,7 +197,7 @@ class Handler:
         cli.cap('END')
 
     def on_sasl_failure(self, cli, *etc):
-        cli.printer('Authentication Failed.')
+        cli.stream_handler('Authentication Failed.')
         cli.disconnect()
 
     def on_disconnect(self):

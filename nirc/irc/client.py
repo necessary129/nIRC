@@ -99,12 +99,12 @@ class IRCClient(asyncio.Protocol):
         self._opts.nick = kwargs.pop('nick')
         self._ident = kwargs.pop('ident')
         self.join_channels = []
+        self.stream_handler = lambda output, level=None: print(output)
         self.__dict__.update(**kwargs)
         self.connected = False
         self.reconnect = True
         self._buffer = bytes()
         self.lock = threading.RLock()
-        self.printer = lambda output, level=None: print(output)
         self.tokenbucket = TokenBucket(23, 1.73)
         self.scontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         self.scontext.verify_mode = ssl.CERT_NONE
@@ -143,10 +143,10 @@ class IRCClient(asyncio.Protocol):
         try:
             loop.run_until_complete(task)  
         except OSError:
-            self.printer("Connection Failed. Retrying...")
+            self.stream_handler("Connection Failed. Retrying...")
             self.retries += 1
             if self.retries > 3:
-                self.printer("Not Connecting...")
+                self.stream_handler("Not Connecting...")
                 self.reconnect = False
 
 
@@ -197,7 +197,7 @@ class IRCClient(asyncio.Protocol):
             msg = b" ".join(largs)
             while not self.tokenbucket.consume(1):
                 time.sleep(0.3)
-            self.printer("---> send "+msg.decode('utf8'))
+            self.stream_handler("---> send "+msg.decode('utf8'))
             self._socket.write(msg+'\r\n'.encode('utf8'))
 
     def disconnect(self, msg=None):
@@ -221,7 +221,7 @@ class IRCClient(asyncio.Protocol):
         self._buffer = data.pop()
         for el in data:
             prefix, command, args = parse_raw_irc_command(el.decode('utf8'))
-            self.printer("<--- receive {0} {1} ({2})".format(prefix, command, ", ".join(args)), level="debug")
+            self.stream_handler("<--- receive {0} {1} ({2})".format(prefix, command, ", ".join(args)), level="debug")
             self.handler.recieve_raw(prefix, command, *args)  
 
     def register(self):
