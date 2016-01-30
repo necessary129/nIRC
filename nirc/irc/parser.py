@@ -20,24 +20,6 @@ import re
 
 # Copyright (C) oyoyo Python IRC developers
 def parse_raw_irc_command(element):
-    """
-    This function parses a raw irc command and returns a tuple
-    of (prefix, command, args).
-    The following is a psuedo BNF of the input text:
-
-    <message>  ::= [':' <prefix> <SPACE> ] <command> <params> <crlf>
-    <prefix>   ::= <servername> | <nick> [ '!' <user> ] [ '@' <host> ]
-    <command>  ::= <letter> { <letter> } | <number> <number> <number>
-    <SPACE>    ::= ' ' { ' ' }
-    <params>   ::= <SPACE> [ ':' <trailing> | <middle> <params> ]
-
-    <middle>   ::= <Any *non-empty* sequence of octets not including SPACE
-                   or NUL or CR or LF, the first of which may not be ':'>
-    <trailing> ::= <Any, possibly *empty*, sequence of octets not including
-                     NUL or CR or LF>
-
-    <crlf>     ::= CR LF
-    """
     parts = element.strip().split(" ")
     if parts[0].startswith(':'):
         prefix = parts[0][1:]
@@ -62,7 +44,7 @@ def parse_raw_irc_command(element):
             if arg.startswith(':'):
                 args = args[:idx] + [" ".join(args[idx:])[1:]]
                 break
-    result = re.search('\x01(.+)\x01',element)
+    result = re.match(r'^\x01(.+)\x01$',args[-1])
     if result:
         if command == 'privmsg':
             command = 'ctcp'
