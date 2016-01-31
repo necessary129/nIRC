@@ -44,6 +44,8 @@ class cmd:
         if (not self.pm) and not isch:
             nick.notice("PMing this command is not allowed.")
             return
+
+        cli.admin_logger(" ".join((nick.raw, channel, self.name, msg)))
         return self.func(cli, nick, channel, isch, msg)
 
 

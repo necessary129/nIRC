@@ -99,6 +99,8 @@ class IRCClient(asyncio.Protocol):
         self._opts.nick = kwargs.pop('nick')
         self._ident = kwargs.pop('ident')
         self.join_channels = []
+        self.error_logger = lambda output: print(output)
+        self.admin_logger = lambda output: print(output)
         self.stream_handler = lambda output, level=None: print(output)
         self.__dict__.update(**kwargs)
         self.connected = False

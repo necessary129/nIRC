@@ -86,7 +86,7 @@ class Handler:
             try:
                 func.func(self.client, prefix, *args)
             except Exception:
-                sys.stderr.write(traceback.format_exc())
+                self.client.error_logger(traceback.format_exc())
 
     def connected(self):
         self.client.cap('LS','302')
