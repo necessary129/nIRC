@@ -148,7 +148,7 @@ class Handler:
 
     def on_motd(self, cli, *args):
         self.client._send("NICK",self.client.nick.strip('_'))
-        self.client.join(",".join(self.client.channels))
+        self.client.join(",".join(self.client.join_channels))
         self.del_handler(254)
 
     def on_nonick(self, *args):
