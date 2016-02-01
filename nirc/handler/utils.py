@@ -45,7 +45,7 @@ class cmd:
             nick.notice("PMing this command is not allowed.")
             return
 
-        cli.admin_logger(" ".join((nick.raw if isinstance(nick, info.Nick) else nick.nick.raw, channel, self.name, msg)))
+        cli.admin_logger(" ".join((nick.raw if isinstance(nick, info.Nick) else nick.nick.raw, channel.name, self.name, msg)))
         return self.func(cli, nick, channel, isch, msg)
 
 
