@@ -123,8 +123,6 @@ class IRCClient(asyncio.Protocol):
         else:
             send()
 
-
-
     def privmsg(self, target, msg):
         for line in msg.split('\n'):
             maxchars = 490 - len(self._opts.raw) if self._opts.host else 400
@@ -197,9 +195,6 @@ class IRCClient(asyncio.Protocol):
                 self.disconnect(msg="Keyboard Interrupt.")
             finally:
                 loop.close()
-
-    def send(self, *a):
-        return self.send(*a)
 
     def _send(self, *a):
         with self.lock:
