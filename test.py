@@ -7,7 +7,7 @@ a = IRCClient(
     owner_accounts=['note*'],
     nickserv_account = 'a',
     nickserv_password = 'pass',
-    use_sasl = True,
+    use_sasl = False,
     join_channels = ['#ff']
     )
 
