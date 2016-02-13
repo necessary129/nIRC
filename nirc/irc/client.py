@@ -228,7 +228,7 @@ class IRCClient(asyncio.Protocol):
         data = self._buffer.split(bytes("\n", "utf8"))
         self._buffer = data.pop()
         for el in data:
-            prefix, command, args = parse_raw_irc_command(el.decode('ascii',errors='replace'))
+            prefix, command, args = parse_raw_irc_command(el.decode('utf8'))
             self.stream_handler("<--- receive {0} {1} ({2})".format(prefix, command, ", ".join(args)), level="debug")
             self.handler.recieve_raw(prefix, command, *args)  
 
