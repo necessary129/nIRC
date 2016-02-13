@@ -114,6 +114,17 @@ class IRCClient(asyncio.Protocol):
         self.retries = 0
         self.handler.init(self)
 
+    def send(self, messgae, delay=0.0):
+        def send():
+            self._send(message)
+        if delay > 0:
+            loop = asyncio.get_event_loop()
+            loop.call_later(delay, send)
+        else:
+            send()
+
+
+
     def privmsg(self, target, msg):
         for line in msg.split('\n'):
             maxchars = 490 - len(self._opts.raw) if self._opts.host else 400
