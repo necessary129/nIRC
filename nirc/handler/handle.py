@@ -183,7 +183,7 @@ class Handler:
         elif cmd == 'NAK':
             # This isn't supposed to happen. The server claimed to support a
             # capability but now claims otherwise.
-            cli._send('Server refused capabilities: {0}'.format(' '.join(caps)))
+            cli.stream_handler('Server refused capabilities: {0}'.format(' '.join(caps)))
 
     def on_authenticate(self, cli, prefix, p):
         if p == '+':
@@ -242,15 +242,21 @@ class Handler:
         cli.pong(text)
 
     def on_banlist(self, cli, prefix, snick, channel, ban, setter, time):
-        for user in self.channels[channel].users.values():
-            if user.nick.match(ban):
-                user.banned = True
+        try:
+            for user in self.channels[channel].users.values():
+                if user.nick.match(ban):
+                    user.banned = True
+        except KeyError:
+            pass
 
     def on_quietlist(self, cli, prefix, snick, channel, mode, ban, setter, time):
         self.quiets[channel].add(ban)
-        for user in self.channels[channel].users.values():
-            if user.nick.match(ban):
-                user.quieted = True
+        try:
+            for user in self.channels[channel].users.values():
+                if user.nick.match(ban):
+                    user.quieted = True
+        except KeyError:
+            pass
 
     def on_mode(self, cli, prefix, channel, modes, *nicks):
         d = False

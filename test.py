@@ -8,7 +8,7 @@ a = IRCClient(
     nickserv_account = 'a',
     nickserv_password = 'pass',
     use_sasl = True,
-    channels = ['#ff']
+    join_channels = ['#ff']
     )
 
 @a.cmd('hi', owner_only=True)
