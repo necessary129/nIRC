@@ -114,7 +114,7 @@ class IRCClient(asyncio.Protocol):
         self.retries = 0
         self.handler.init(self)
 
-    def send(self, messgae, delay=0.0):
+    def send(self, message, delay=0.0):
         def send():
             self._send(message)
         if delay > 0:
