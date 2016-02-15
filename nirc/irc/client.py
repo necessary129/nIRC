@@ -182,7 +182,10 @@ class IRCClient(asyncio.Protocol):
 
     def connect(self):
         """"""
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop() 
         if not loop.is_running():
             try:
                 while True:
